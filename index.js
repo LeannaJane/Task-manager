@@ -86,7 +86,6 @@ async function viewTasks() {
     switch (parsedChoice) {
         case 1:
             console.log("\n--- All Tasks ---");
-            sql
             break;
         case 2:
             console.log("\n--- Completed Tasks ---");
