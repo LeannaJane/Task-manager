@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/LeannaJane/Task-manager#readme",
   "dependencies": {
+    "cli-table3": "^0.6.5",
     "figlet": "^1.11.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^6.0.1"
