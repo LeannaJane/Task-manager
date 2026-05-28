@@ -3,7 +3,6 @@ import sqlite3 from "sqlite3";
 import readline from 'readline/promises';
 import Table from 'cli-table3';
 
-
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
@@ -14,7 +13,7 @@ const db = await open({
     driver: sqlite3.Database
 });
 
-await db.exec(`
+await db.exec(` 
   CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     description TEXT NOT NULL,
@@ -37,34 +36,78 @@ function welcomePage() {
 }
 
 async function addTask() {
-    const description = await rl.question("\nEnter Task description: ");
-    
-    if (!description.trim()) {
-        console.log("Description cannot be empty!");
-        return;
+    let adding = true;
+
+    while (adding) {
+        const description = await rl.question("\nEnter Task description: ");
+        
+        if (!description.trim()) {
+            console.log("Description cannot be empty!");
+            return;
+        }
+
+        console.log("\nWhat is the current status of this task? ");
+        console.log("1. To Do ");
+        console.log("2. In progress ");
+        console.log("3. Complete ");
+
+        const statusOption = await rl.question("Option (1-3): ");
+
+        let status = 'todo';
+        if (statusOption === '2') {
+            status = 'in-progress';
+        } else if (statusOption === '3') {
+            status = 'done';
+        }
+
+        await db.run(
+            `INSERT INTO tasks (description, status) VALUES (?, ?)`,
+            [description, status]
+        );
+        
+        console.log("\nTask added successfully!");
+
+        const answer = await rl.question("\nWould you like to add another task? (y/n): ");
+        if (answer.toLowerCase().trim() !== 'y') {
+            adding = false;
+        }
     }
-
-    console.log("\nWhat is the current status of this task? ");
-    console.log("1. To Do ");
-    console.log("2. In progress ");
-    console.log("3. Complete ");
-
-    const statusOption = await rl.question("Option (1-3): ");
-
-    let status = 'todo';
-    if (statusOption === '2') {
-        status = 'in-progress';
-    } else if (statusOption === '3') {
-        status = 'done';
-    }
-
-    await db.run(
-        `INSERT INTO tasks (description, status) VALUES (?, ?)`,
-        [description, status]
-    );
-    
-    console.log("\nTask added successfully!");
 }
+
+function renderTable(rows) {
+    if (rows.length === 0) {
+        console.log("No tasks found!");
+        return false; 
+    }
+
+    const table = new Table({
+        head: ['ID', 'STATUS', 'DESCRIPTION', 'DATE CREATED', 'TIME CREATED', 'DATE UPDATED', 'TIME UPDATED'],
+        colWidths: [6, 13, 25, 14, 14, 14, 14], 
+        style: {
+            head: ['cyan', 'bold'],
+            border: ['gray']
+        }
+    });
+
+    rows.forEach(task => {
+        const createdSplit = task.createdAt.split(' ');
+        const updatedSplit = task.updatedAt.split(' ');
+
+        table.push([
+            task.id,
+            task.status.toUpperCase(),
+            task.description,
+            createdSplit[0],
+            createdSplit[1],
+            updatedSplit[0],
+            updatedSplit[1]
+        ]);
+    });
+
+    console.log(table.toString());
+    return true; 
+}
+
 async function viewTasks() {
     let viewing = true;
 
@@ -86,7 +129,7 @@ async function viewTasks() {
             case 1:
                 console.log("\n--- All Tasks ---");
                 sql = `SELECT * FROM tasks`;
-                break;
+                break; 
             case 2:
                 console.log("\n--- Completed Tasks ---");
                 sql = "SELECT * FROM tasks WHERE status = 'done'";
@@ -111,45 +154,59 @@ async function viewTasks() {
                 continue; 
         }
     
-    const rows = await db.all(sql);
-
-    if (rows.length === 0) {
-        console.log("No tasks found matching this filter!");
-        continue;
-    }
-
-    const table = new Table({
-        head: ['ID', 'STATUS', 'DESCRIPTION', 'DATE CREATED', 'TIME CREATED', 'DATE UPDATED', 'TIME UPDATED'],
-        colWidths: [6, 13, 25, 14, 14, 14, 14], 
-        style: {
-            head: ['cyan', 'bold'],
-            border: ['gray']
+        const rows = await db.all(sql);
+        const didPrint = renderTable(rows);
+        
+        if (!didPrint) {
+            continue;
         }
-    });
-
-    rows.forEach(task => {
-        const createdSplit = task.createdAt.split(' ');
-        const createdDate = createdSplit[0];
-        const createdTime = createdSplit[1];
-
-        const updatedSplit = task.updatedAt.split(' ');
-        const updatedDate = updatedSplit[0];
-        const updatedTime = updatedSplit[1];
-
-        table.push([
-            task.id,
-            task.status.toUpperCase(),
-            task.description,
-            createdDate,
-            createdTime,
-            updatedDate,
-            updatedTime
-        ]);
-    });
-
-    console.log(table.toString());
     
-    await rl.question("\nPress Enter to return to the task viewer menu...");
+        await rl.question("\nPress Enter to return to the task viewer menu...");
+    }
+}
+
+async function deleteTask() {
+    let deleting = true;
+
+    while (deleting) {
+        console.log("\n--- TASKS BEFORE DELETION ---");
+        const rowsBefore = await db.all('SELECT * FROM tasks');
+        
+        const hasTasks = renderTable(rowsBefore);
+        if (!hasTasks) {
+            await rl.question("\nPress Enter to return to the main menu...");
+            break; 
+        }
+
+        const idInput = await rl.question("\nEnter the ID of the task you want to delete (or press Enter to cancel): ");
+        
+        if (!idInput.trim()) {
+            console.log("Deletion cancelled.");
+            return;
+        }
+
+        const targetId = parseInt(idInput, 10);
+        if (isNaN(targetId)) {
+            console.log("Invalid ID! Action cancelled.");
+            return;
+        }
+
+        const result = await db.run('DELETE FROM tasks WHERE id = ?', [targetId]);
+
+        if (result.changes === 0) {
+            console.log(`No task found with ID: ${targetId}`);
+        } else {
+            console.log(`Task ID ${targetId} has been successfully deleted!`);
+            
+            console.log("\n--- TASKS AFTER DELETION ---");
+            const rowsAfter = await db.all('SELECT * FROM tasks');
+            renderTable(rowsAfter);
+        }
+
+        const answer = await rl.question("\nWould you like to delete another task? (y/n): ");
+        if (answer.toLowerCase().trim() !== 'y') {
+            deleting = false;
+        }
     }
 }
 
@@ -173,7 +230,7 @@ async function taskTracker() {
                 console.log("\nUpdate task status placeholder...");
                 break;
             case 4:
-                console.log("\nDelete task placeholder...");
+                await deleteTask();
                 break;
             case 5:
                 console.log("\nGoodbye!");
