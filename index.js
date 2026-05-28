@@ -210,6 +210,75 @@ async function deleteTask() {
     }
 }
 
+async function updateTaskStatus() {
+    let updating = true;
+
+    while (updating) {
+        console.log("\n--- CURRENT TASKS ---");
+        const rowsBefore = await db.all('SELECT * FROM tasks');
+        
+        const hasTasks = renderTable(rowsBefore);
+        if (!hasTasks) {
+            await rl.question("\nPress Enter to return to the main menu...");
+            break; 
+        }
+
+        const idInput = await rl.question("\nEnter the ID of the task you want to update (or press Enter to cancel): ");
+        
+        if (!idInput.trim()) {
+            console.log("Update cancelled.");
+            return;
+        }
+
+        const targetId = parseInt(idInput, 10);
+        if (isNaN(targetId)) {
+            console.log("Invalid ID! Action cancelled.");
+            return;
+        }
+
+        const taskCheck = await db.get('SELECT * FROM tasks WHERE id = ?', [targetId]);
+        if (!taskCheck) {
+            console.log(`No task found with ID: ${targetId}`);
+            continue;
+        }
+
+        console.log(`\nUpdating status for Task ID ${targetId}: "${taskCheck.description}"`);
+        console.log("1. To Do");
+        console.log("2. In Progress");
+        console.log("3. Complete");
+        
+        const statusOption = await rl.question("Choose new status (1-3): ");
+        
+        let newStatus = '';
+        if (statusOption === '1') {
+            newStatus = 'todo';
+        } else if (statusOption === '2') {
+            newStatus = 'in-progress';
+        } else if (statusOption === '3') {
+            newStatus = 'done';
+        } else {
+            console.log("Invalid status option! Update failed.");
+            continue;
+        }
+
+        await db.run(
+            `UPDATE tasks SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`,
+            [newStatus, targetId]
+        );
+
+        console.log(`\nTask ID ${targetId} updated to [${newStatus.toUpperCase()}]!`);
+        
+        console.log("\n--- TASKS AFTER UPDATE ---");
+        const rowsAfter = await db.all('SELECT * FROM tasks');
+        renderTable(rowsAfter);
+
+        const answer = await rl.question("\nWould you like to update another task? (y/n): ");
+        if (answer.toLowerCase().trim() !== 'y') {
+            updating = false;
+        }
+    }
+}
+
 async function taskTracker() {
     let running = true;
 
@@ -227,7 +296,7 @@ async function taskTracker() {
                 await addTask();
                 break;
             case 3:
-                console.log("\nUpdate task status placeholder...");
+                await updateTaskStatus();
                 break;
             case 4:
                 await deleteTask();
