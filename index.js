@@ -182,13 +182,13 @@ async function deleteTask() {
         
         if (!idInput.trim()) {
             console.log("Deletion cancelled.");
-            return;
+            break;
         }
 
         const targetId = parseInt(idInput, 10);
         if (isNaN(targetId)) {
             console.log("Invalid ID! Action cancelled.");
-            return;
+            break;
         }
 
         const result = await db.run('DELETE FROM tasks WHERE id = ?', [targetId]);
@@ -227,13 +227,13 @@ async function updateTaskStatus() {
         
         if (!idInput.trim()) {
             console.log("Update cancelled.");
-            return;
+            break;
         }
 
         const targetId = parseInt(idInput, 10);
         if (isNaN(targetId)) {
             console.log("Invalid ID! Action cancelled.");
-            return;
+            break;
         }
 
         const taskCheck = await db.get('SELECT * FROM tasks WHERE id = ?', [targetId]);
